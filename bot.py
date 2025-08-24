@@ -1,5 +1,3 @@
-# agent.py: Final Version using Mediastack API
-
 import os
 import requests
 import google.generativeai as genai
@@ -11,7 +9,7 @@ import discord
 
 # --- LOAD ALL SECRET KEYS ---
 load_dotenv()
-NEWS_API_KEY = os.getenv('NEWS_API_KEY') # This will now be your Mediastack key
+NEWS_API_KEY = os.getenv('NEWS_API_KEY')  # This will now be your Mediastack key
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 SENDER_EMAIL = os.getenv('SENDER_EMAIL')
 SENDER_PASSWORD = os.getenv('SENDER_PASSWORD')
@@ -24,6 +22,14 @@ genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
+
+# Helper function to send long messages in chunks for Discord
+async def send_long_message(channel, content):
+    max_length = 2000
+    while len(content) > 0:
+        to_send = content[:max_length]
+        await channel.send(to_send)
+        content = content[max_length:]
 
 # --- BOT'S SINGLE TASK ---
 @client.event
@@ -43,7 +49,7 @@ async def on_ready():
             'access_key': NEWS_API_KEY,
             'categories': 'technology',
             'languages': 'en',
-            'limit': 10,
+            'limit': 5,
             'sort': 'published_desc'
         }
         response = requests.get('http://api.mediastack.com/v1/news', params=params)
@@ -69,7 +75,7 @@ async def on_ready():
         {formatted_articles}
         """
         gemini_response = model.generate_content(prompt)
-        html_body = gemini_response.text.replace("```html", "").replace("```", "").strip()
+        html_body = gemini_response.text.replace("``````", "").strip()
         
         # Create a simple text version for Discord
         discord_prompt = f"""
@@ -80,10 +86,10 @@ async def on_ready():
         {formatted_articles}
         """
         discord_gemini_response = model.generate_content(discord_prompt)
-        discord_body = discord_gemini_response.text
+        discord_body = discord_gemini_response.text.strip()
 
-        # 3. POST TO DISCORD
-        await channel.send(discord_body)
+        # 3. POST TO DISCORD (with message length check)
+        await send_long_message(channel, discord_body)
         print("Successfully posted news to Discord.")
 
         # 4. SEND THE HTML EMAIL
