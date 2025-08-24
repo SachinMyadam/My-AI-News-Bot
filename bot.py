@@ -1,6 +1,7 @@
-# agent.py: Final Version using GNews API
+# agent.py: Final Automation Version
 
 import os
+import discord
 import requests
 import google.generativeai as genai
 import smtplib
@@ -10,7 +11,8 @@ from dotenv import load_dotenv
 
 # --- LOAD ALL SECRET KEYS ---
 load_dotenv()
-NEWS_API_KEY = os.getenv('NEWS_API_KEY') # This will now be your GNews key
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+NEWS_API_KEY = os.getenv('NEWS_API_KEY')
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 SENDER_EMAIL = os.getenv('SENDER_EMAIL')
 SENDER_PASSWORD = os.getenv('SENDER_PASSWORD')
@@ -23,7 +25,6 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 
-
 # --- BOT EVENTS ---
 @client.event
 async def on_ready():
@@ -35,17 +36,16 @@ async def on_ready():
         await client.close()
         return
 
-    print("Fetching and generating the news report from GNews...")
+    print("Fetching and generating the news report...")
     try:
-        # 1. FETCH NEWS from GNews
-        topic = "technology"
-        url = f"https://gnews.io/api/v4/top-headlines?category={topic}&lang=en&max=10&apikey={NEWS_API_KEY}"
+        # 1. FETCH NEWS
+        url = f"https://newsapi.org/v2/top-headlines?country=us&category=technology&pageSize=10&apiKey={NEWS_API_KEY}"
         response = requests.get(url)
         data = response.json()
         articles = data.get('articles', [])
 
         if not articles:
-            await channel.send("Sorry, I couldn't find any news today using GNews.")
+            await channel.send("Sorry, I couldn't find any news today.")
             await client.close()
             return
 
