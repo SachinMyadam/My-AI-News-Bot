@@ -1,23 +1,23 @@
-# bot.py: Final Automation Version
+# agent.py: Final Version using Mediastack API
 
 import os
-import discord
 import requests
 import google.generativeai as genai
 import smtplib
 from email.message import EmailMessage
 from datetime import date
 from dotenv import load_dotenv
+import discord
 
 # --- LOAD ALL SECRET KEYS ---
 load_dotenv()
-DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-NEWS_API_KEY = os.getenv('NEWS_API_KEY') # This should be your GNews key
+NEWS_API_KEY = os.getenv('NEWS_API_KEY') # This will now be your Mediastack key
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-DISCORD_CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID'))
 SENDER_EMAIL = os.getenv('SENDER_EMAIL')
 SENDER_PASSWORD = os.getenv('SENDER_PASSWORD')
 RECIPIENT_EMAIL = os.getenv('RECIPIENT_EMAIL')
+DISCORD_CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID'))
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 
 # --- CONFIGURE THE APIs ---
 genai.configure(api_key=GOOGLE_API_KEY)
@@ -32,25 +32,30 @@ async def on_ready():
     
     channel = client.get_channel(DISCORD_CHANNEL_ID)
     if not channel:
-        print(f"Error: Could not find the channel with ID {DISCORD_CHANNEL_ID}.")
+        print("Error: Could not find the specified channel.")
         await client.close()
         return
 
-    print("Fetching and generating the news report from GNews...")
+    print("Fetching and generating the news report from Mediastack...")
     try:
-        topic = "technology"
-        url = f"https://gnews.io/api/v4/search?q={topic}&lang=en&country=us&max=10&apikey={NEWS_API_KEY}"
-        
-        response = requests.get(url)
+        # 1. FETCH NEWS from Mediastack
+        params = {
+            'access_key': NEWS_API_KEY,
+            'categories': 'technology',
+            'languages': 'en',
+            'limit': 10,
+            'sort': 'published_desc'
+        }
+        response = requests.get('http://api.mediastack.com/v1/news', params)
         data = response.json()
-        articles = data.get('articles', [])
+        articles = data.get('data', [])
 
         if not articles:
-            print("GNews API returned no articles. This could be a key activation issue or API limit.")
-            await channel.send("Sorry, I couldn't find any news today using GNews.")
+            await channel.send("Sorry, I couldn't find any news today using Mediastack.")
             await client.close()
             return
 
+        # 2. CREATE A PROFESSIONAL HTML EMAIL WITH GEMINI AI
         formatted_articles = ""
         for i, article in enumerate(articles):
             formatted_articles += f"{i+1}. Title: {article['title']}\n   URL: {article['url']}\n\n"
@@ -66,7 +71,7 @@ async def on_ready():
         gemini_response = model.generate_content(prompt)
         html_body = gemini_response.text.replace("```html", "").replace("```", "").strip()
 
-        # Send the email
+        # 3. SEND THE HTML EMAIL
         today = date.today().strftime("%B %d, %Y")
         msg = EmailMessage()
         msg['Subject'] = f"Your Daily Tech Briefing for {today}"
@@ -78,7 +83,7 @@ async def on_ready():
             smtp.login(SENDER_EMAIL, SENDER_PASSWORD)
             smtp.send_message(msg)
         
-        print(f"Successfully sent GNews report to {RECIPIENT_EMAIL}.")
+        print(f"Successfully sent Mediastack report to {RECIPIENT_EMAIL}.")
 
     except Exception as e:
         print(f"An error occurred: {e}")
